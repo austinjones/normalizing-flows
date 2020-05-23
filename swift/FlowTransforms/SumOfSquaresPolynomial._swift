@@ -1,0 +1,140 @@
+import Foundation
+import TensorFlow
+
+let sos = SumOfSquaresPolynomial(shape: [2])
+let z = Tensor<Float>(1.2)
+let polynomials = Tensor<Float>([[1.0, 0.101], [2.0, 0.001]])
+let y = sos.forward_at_z(z, polynomials: polynomials)
+let det = exp(sos.log_det_at_z(z, polynomials: polynomials))
+let z_backward = sos.reverse_at_y(y, polynomials: polynomials)
+print("z", z)
+print("y", y)
+print("det", det)
+print("z_back", z_backward)
+
+public struct SumOfSquaresConditioner: Layer {
+    public var network: Dense<Float> = Dense(inputSize: 1, outputSize: 1)
+    
+    init() {
+        
+    }
+    
+    @differentiable
+    public func callAsFunction(_ input: Tensor<Float>) -> Tensor<Float> {
+        return input
+    }
+}
+
+// Sum of Squares Polynomial flow with the specialization of r=2
+// The conditioner shape determines the # of polynomials, but each row has two entries
+// The determinant is calculated based on sum(log(|s|)) on the diagonal
+// The inverse is calculated based on the inversion of the cubic integral of the polynomial basis
+public struct SumOfSquaresPolynomial: Layer {
+    public var Cs: [SumOfSquaresConditioner] = [SumOfSquaresConditioner()]
+    public var c: Tensor<Float> = Tensor(0.0)
+    
+    init(shape: TensorShape) {
+        
+    }
+    
+    @differentiable
+    public func callAsFunction(_ input: TensorDeterminant) -> TensorDeterminant {
+        return input
+    }
+    
+    public func forward_at_z(_ z: Tensor<Float>, polynomials: Tensor<Float>) -> Tensor<Float> {
+        // input is a scalar value
+        // polynomials is a [n, 2] tensor
+        // term 1 is the constant term
+        // term 2 is the first-order value of the integral
+        // term 3 and 4 are the 2nd and 3rd order values of the integral
+        let polyt = polynomials.transposed()
+        
+        let a_0 = polyt[0]
+        let a_1 = polyt[1]
+        
+        let y_0 = c
+        let y_1 = z * a_0.squared().sum()
+        let y_2 = pow(z, 2) * (a_0 * a_1).sum()
+        let y_3 = Tensor(1.0/3.0) * pow(z, 3) * a_1.squared().sum()
+        return y_0 + y_1 + y_2 + y_3
+    }
+    
+    // the derivative of the integral of the polynomial is just the polynomial
+    // so the log_det of F is log(p(z))
+    public func log_det_at_z(_ z: Tensor<Float>, polynomials: Tensor<Float>) -> Tensor<Float> {
+        let polyt = polynomials.transposed()
+        
+        let a_0 = polyt[0]
+        let a_1 = polyt[1]
+        
+        return log(pow(a_0 + z * a_1, 2).sum())
+    }
+    
+    // The reverse pass is a bit more complicated
+    // The sum of squares integral evaluates to a cubic polynomial
+    // We collect these factors, and use the cubic formula to find the root
+    // Formula is here: https://math.vanderbilt.edu/schectex/courses/cubic/
+    // d = 0 in our case, so it can be simplified a bit
+    public func reverse_at_y(_ y: Tensor<Float>, polynomials: Tensor<Float>) -> Tensor<Float> {
+        let polyt = polynomials.transposed()
+        
+        let a_0 = polyt[0]
+        let a_1 = polyt[1]
+        
+        print("a_0", a_0)
+        print("a_1", a_1)
+        
+        // TODO: upcast to Double for this part
+        let one = Tensor<Float>(1.0)
+        let two = Tensor<Float>(2.0)
+        let three = Tensor<Float>(3.0)
+        let six = Tensor<Float>(6.0)
+        
+        // factors of cubic
+        let c: Tensor<Float> = a_0.squared().sum()
+        let b: Tensor<Float> = (a_0 * a_1).sum()
+        let a: Tensor<Float> = (one / three) * a_1.squared().sum()
+        let d = -y
+        
+        print("")
+        print("a", a)
+        print("b", b)
+        print("c", c)
+        
+        // evaluation of the cubic formula, in log space for numeric stability
+        let p: Tensor<Float> = -b / (three * a)
+        let bc_minus_3ad: Tensor<Float> = b * c - three * a * d
+        let six_a_squared: Tensor<Float> = six * pow(a, two)
+        let q: Tensor<Float> = pow(p, three) + bc_minus_3ad / six_a_squared
+        
+        let r: Tensor<Float> = c / (three * a)
+        
+        print("")
+        print("p", p)
+        print("q", q)
+        print("r", r)
+        
+        let rp_squared_cubed: Tensor<Complex<Float>> = pow(r - pow(p, two), three)
+        let sqrt_q_squared_rp: Tensor<Complex<Float>> = sqrt(pow(q, two) + rp_squared_cubed)
+        let q_plus_qrp: Tensor<Complex<Float>>  = pow(q + sqrt_q_squared_rp, one / three)
+        // max is required for numerical stability
+        // there are situations where q and sqrt_q_squared_rp are nearly equal
+        let q_minus_qrp: Tensor<Complex<Float>>  = pow(q - sqrt_q_squared_rp, one / three)
+        
+        print("")
+        print("sqrt_q_squared_rp", sqrt_q_squared_rp)
+        print("q_plus_qrp", q + sqrt_q_squared_rp)
+        print("q_minus_qrp", q - sqrt_q_squared_rp)
+        
+        return q_plus_qrp + q_minus_qrp + p
+    }
+
+    public func reverse(_ y: TensorDeterminant) -> TensorDeterminant {
+//        let val = (output.val - b) / s
+//        let log_det = 1.0 / log_determinant()
+//
+//        return TensorDeterminant(from: output, to_val: val, log_det: log_det)
+        return y
+    }
+}
