@@ -3,12 +3,12 @@ An exploration of Normalizing Flows, in Pytorch and Swift for Tensorflow.
 
 
 ## Pytorch
-In the notebooks directory, I focused on developing a rigorous method of benchmarking flow performance, 
+In the notebooks directory, I focused on developing a rigorous method of benchmarking flow performance 
 and testing that flow implementations have correct log determinants, and inverses.  
 
 ### KL Divergence Benchmarking
 One of my most interesting discoveries is that it is possible to benchmark performance based on the KL divergence 
-between the data distribution, and the normalized distribution (under the change of variables theorem).  This can be evaluated 
+between the data distribution and the normalized distribution (under the change of variables theorem).  This can be evaluated 
 via Monte Carlo estimation, as `Mean [ log P(data) - log N(output) - log determinant ]`, where `P` is a chosen source distriution, 
 `N` is the multivariate gaussian, and `log determinant` is an output of the flow model.
 
