@@ -36,7 +36,7 @@ In the swift directory I implemented the flows described in RealNVP and Glow:
 
 ### Real Data
 I applied the models to an interesting problem: learning the distribution of colors in a palette.  
-These datasets are easy to extract from images, and the distributions can be quirky, which challenges the models.
+These datasets are easy to extract from images and the distributions can be quirky, which challenges the model.
 
 Here are colors sampled from the 'purple-forest' source dataset:
 ![training colors](https://raw.githubusercontent.com/austinjones/normalizing-flows/master/datasets/purple-forest.jpg)
