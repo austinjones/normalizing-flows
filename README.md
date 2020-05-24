@@ -29,7 +29,7 @@ file has implementations of novel non-linear activation functions:
 - [SoftsquareFlow](https://github.com/austinjones/normalizing-flows/blob/master/notebooks/flows.py#L100), a residual activation function, elementwise y = a * x + b * sign(x) * x^2
 
 ## Swift
-In the swift directory, I implemented the flows described in RealNVP and Glow.  Of interest are:
+In the swift directory I implemented the flows described in RealNVP and Glow:
 - [AffineCoupling.swift](https://github.com/austinjones/normalizing-flows/blob/master/swift/FlowTransforms/AffineCoupling.swift), the affine coupling layer.
 - [InvertibleConvolutionQr.swift](https://github.com/austinjones/normalizing-flows/blob/master/swift/FlowTransforms/InvertibleConvolutionQr.swift), an alternative method to invert a 1x1 convolution based on QR decomposition.
 - [HouseholderReflection.swift](https://github.com/austinjones/normalizing-flows/blob/master/swift/FlowTransforms/HouseholderReflection.swift), an implementation of Householder Reflections about a trainable hyperplane.
