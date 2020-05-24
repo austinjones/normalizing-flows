@@ -16,8 +16,8 @@ In fact, the RealNVP/Glow objective function is simply the second term of the KL
 (as the first term is a constant under optimization).
 If the flow performs perfectly, the KL divergence will reduce to 0.
 
-This method is convenient when comparing performance across problems, as the KL divergence metric is 
-an absolute measure of divergence, and thus can be used to compare flow performance across source distributions.
+This method is convenient when comparing performance across problems, since the KL divergence metric is 
+an absolute measure of divergence and can be used to compare flow performance across source distributions.
 
 It can also be evaluated at any layer of the network, not just the final layer 
 (by assuming the output is gaussian, and using the log determinant up to that layer).
