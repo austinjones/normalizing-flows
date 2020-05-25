@@ -7,24 +7,23 @@ In the notebooks directory, I focused on developing a rigorous method of benchma
 and testing that flow implementations have correct log determinants, and inverses.  
 
 ### KL Divergence Benchmarking
-One of my most interesting discoveries is that it is possible to benchmark performance based on the KL divergence 
+One of my most interesting discoveries is that it is possible to benchmark Flow performance using the KL divergence 
 between the data distribution and the normalized distribution (under the change of variables theorem).  This can be evaluated 
-via Monte Carlo estimation, as `Mean [ log P(data) - log N(output) - log determinant ]`, where `P` is a chosen source distriution, 
+via Monte Carlo estimation, as `Mean [ log P(data) - log N(output) - log determinant ]`, where `P` is a chosen source distribution, 
 `N` is the multivariate gaussian, and `log determinant` is an output of the flow model.
 
-In fact, the RealNVP/Glow objective function is simply the second term of the KL divergence 
+In fact, the normalizing flow objective function is simply the second term of the KL divergence 
 (as the first term is a constant under optimization).
-If the flow performs perfectly, the KL divergence will reduce to 0.
 
 This method is convenient when comparing performance across problems, since the KL divergence metric is 
-an absolute measure of divergence and can be used to compare flow performance across source distributions.
+an absolute measure of divergence and can be used to compare flow performance across many source distributions.  If the flow performs perfectly, the KL divergence will reduce to 0.
 
 It can also be evaluated at any layer of the network, not just the final layer 
 (by assuming the output is gaussian, and using the log determinant up to that layer).
 
 ### Pytorch Flows
 The [flows.py](https://github.com/austinjones/normalizing-flows/blob/master/notebooks/flows.py)
-file has implementations of novel non-linear activation functions:
+file has implementations of novel non-linear activation functions.  Some Normalizing Flow papers use Sigmoid and Inverse Sigmoid non-linearities, but it turns out there are many differentiable functions which are fully invertible, of the form `y =  sign(x) f(abs(x))`, where f is a monotonic function on `[0, +inf)`.
 - [SoftlogFlow](https://github.com/austinjones/normalizing-flows/blob/master/notebooks/flows.py#L79), the elementwise function of y = sign(x) log(abs(x) + 1)
 - [SoftsquareFlow](https://github.com/austinjones/normalizing-flows/blob/master/notebooks/flows.py#L100), a residual activation function, elementwise y = a * x + b * sign(x) * x^2
 
