@@ -18,8 +18,7 @@ In fact, the normalizing flow objective function is simply the second term of th
 This method is convenient when comparing performance across problems, since the KL divergence metric is 
 an absolute measure of divergence and can be used to compare flow performance across many source distributions.  If the flow performs perfectly, the KL divergence will reduce to 0.
 
-It can also be evaluated at any layer of the network, not just the final layer 
-(by assuming the output is gaussian, and using the log determinant up to that layer).
+It can also be evaluated up to any layer of the network, not just the final layer.  When evaluated on each layer, it produces a 'performance trace', and reveals which transformations help the flow achieve convergence.
 
 ### Pytorch Flows
 The [flows.py](https://github.com/austinjones/normalizing-flows/blob/master/notebooks/flows.py)
