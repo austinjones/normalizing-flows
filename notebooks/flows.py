@@ -141,15 +141,12 @@ class SoftsquareFlow(nn.Module):
     def backward(self, y):
         a = self.a.abs()
         b = self.b.abs()
+        
+        aa = a * a
+        by4 = 4.0 * b * y
 
-        if b != 0.0:
-            aa = a * a
-            by4 = 4.0 * b * y
-
-            root = (aa + by4.abs()).sqrt()
-            x = y.sign() * (root - a) / (2.0 * b)
-        else:
-            x = y / a
+        root = (aa + by4.abs()).sqrt()
+        x = y.sign() * (root - a) / (2.0 * b)
 
         log_det = - SoftsquareFlowFunction.dydx(a, b, x).log().sum(1)
         return x, log_det

@@ -1,3 +1,5 @@
 **/.DS_Store
 .vscode/**
 *.pyc
+datasets/purple-forest-output.csv
+datasets/purple-forest-output.jpg
