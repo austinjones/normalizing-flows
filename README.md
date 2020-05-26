@@ -33,11 +33,11 @@ In the swift directory I implemented the flows described in RealNVP and Glow:
 - [HouseholderReflection.swift](https://github.com/austinjones/normalizing-flows/blob/master/swift/FlowTransforms/HouseholderReflection.swift), an implementation of Householder Reflections about a trainable hyperplane.
 
 ### Real Data
-I applied the models to an interesting problem: learning the distribution of colors in a palette.  
-These datasets are easy to extract from images and the distributions can be quirky, which challenges the model.
+In [color-distribution.ipynb](https://github.com/austinjones/normalizing-flows/blob/master/notebooks/color-distribution.ipynb),  I applied the models to a real-world problem: learning the distribution of colors in a palette.  
+These datasets are easy to extract from images and the distributions can be quirky, and thus challenge the model.
 
 Here are colors sampled from the 'purple-forest' source dataset:
 ![training colors](https://raw.githubusercontent.com/austinjones/normalizing-flows/master/datasets/purple-forest.jpg)
 
-These are colors which were generated from a normalizing flow model, with about 500 weights:
+These are colors which were generated from a model with ~175 weights:
 ![generated colors](https://raw.githubusercontent.com/austinjones/normalizing-flows/master/datasets/purple-forest-epoch-50.jpg)
