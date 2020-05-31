@@ -14,6 +14,7 @@ public struct HouseholderReflectionLayer: Layer {
     public func callAsFunction(_ input: TensorDeterminant) -> TensorDeterminant {
         // we need to divide by the l2_norm squared, so the sqrt and squared cancel
         let v_norm = v / sqrt(v.squared().sum())
+        let vT_x = matmul(v_norm.transposed(), input.val.expandingShape(at: [2]))
         let v_vT_x = matmul(v_norm, vT_x)
         let val = input.val - (1.0 + t) * v_vT_x.squeezingShape(at: [2])
         

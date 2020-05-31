@@ -3,6 +3,35 @@ import torch.nn as nn
 import torch.autograd as grad
 import math
 
+class ScaleBiasFlow(nn.Module):
+    """
+        A dense neural layer, restricted to triangular weights for invertability, and tractable log determinant
+    """
+    def __init__(self, dim):
+        super(ScaleBiasFlow, self).__init__()
+        self.s = nn.Parameter(torch.ones(dim))
+        self.b = nn.Parameter(torch.zeros(dim))
+        
+    def forward(self, x):
+        return self.s * x + self.b, self.s.log().sum()
+
+    def backward(self, y):
+        return (y - self.b) / self.s, self.s.log().sum()
+
+class BiasFlow(nn.Module):
+    """
+        A dense neural layer, restricted to triangular weights for invertability, and tractable log determinant
+    """
+    def __init__(self, dim):
+        super(BiasFlow, self).__init__()
+        self.b = nn.Parameter(torch.zeros(dim))
+        
+    def forward(self, x):
+        return x + self.b, torch.tensor(0.0)
+
+    def backward(self, y):
+        return x - self.b, torch.tensor(0.0)
+
 class DenseTriangularFlow(nn.Module):
     """
         A dense neural layer, restricted to triangular weights for invertability, and tractable log determinant
@@ -56,6 +85,49 @@ class SigmoidFlow(nn.Module):
     def backward(self, y):
         x = (-y / (y-1)).log()
         log_det = - self.dydx(x).log().sum(1)
+        return x, log_det
+
+class SoftexpFlowFunction(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, input, a):
+        ctx.save_for_backward(input, a)
+        return input.sign() * (a.pow(input.abs()) - 1)
+
+    @staticmethod
+    def dydx(x, a):
+        grad = a.pow(x.abs()) * a.log()
+        return grad
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        input, a = ctx.saved_tensors
+        dydx = SoftexpFlowFunction.dydx(input, a)
+        grad = grad_output * dydx, grad_output * input * a.pow(input.abs()-1)
+        return grad
+
+class SoftexpFlow(nn.Module):
+    """
+        A non-linear activation function, with analytic inverse and log determinant.
+
+        This activation function has the domain and range of R, and thus can be used to build invertible networks.
+
+        Equation: y = sign(x) log(abs(x) + 1)
+    """
+    def __init__(self, dim):
+        super(SoftexpFlow, self).__init__()
+        self.a = nn.Parameter(torch.ones(dim) * math.e)
+
+    def forward(self, x):
+        # a needs to be greater than 1 for the exponential function to be increasing
+        a = self.a.clamp(1 + 1e-1)
+        softexp = SoftexpFlowFunction.apply
+        log_det = SoftexpFlowFunction.dydx(x, a).log().sum(1)
+        return softexp(x, a), log_det
+
+    def backward(self, y):
+        a = self.a.clamp(1 + 1e-1)
+        x = y.sign() * (y.abs() + 1).log() / a.log()
+        log_det = - SoftexpFlowFunction.dydx(x, a).log().sum(1)
         return x, log_det
 
 class SoftlogFlowFunction(torch.autograd.Function):
@@ -127,11 +199,12 @@ class SoftsquareFlow(nn.Module):
         self.a = nn.Parameter(torch.ones(dim))
         # the gradient of 0.abs() seems to evaluate to zero.
         # we need to add a small epsilon so b can be trained
-        self.b = nn.Parameter(torch.zeros(dim) + 1e-16)
+        self.b = nn.Parameter(torch.zeros(dim) + 1e-2)
+        # self.z = nn.Parameter(torch.zeros(dim))
 
     def forward(self, x):
-        a = self.a.abs()
-        b = self.b.abs()
+        a = self.a.clamp(1e-16)
+        b = self.b.clamp(1e-16)
 
         softsquare = SoftsquareFlowFunction.apply
 
@@ -139,17 +212,42 @@ class SoftsquareFlow(nn.Module):
         return softsquare(a, b, x), log_det
 
     def backward(self, y):
-        a = self.a.abs()
-        b = self.b.abs()
-        
+        a = self.a.clamp(1e-16)
+        b = self.b.clamp(1e-16)
+
+        # y_minus_c = y - self.c
         aa = a * a
-        by4 = 4.0 * b * y
+        by4 = 4.0 * b * y_minus_c
 
         root = (aa + by4.abs()).sqrt()
-        x = y.sign() * (root - a) / (2.0 * b)
+        x = y_minus_c.sign() * (root - a) / (2.0 * b)
 
         log_det = - SoftsquareFlowFunction.dydx(a, b, x).log().sum(1)
         return x, log_det
+
+class PowerFlow(nn.Module):
+    """
+        A non-linear activation function, with analytic inverse and log determinant.
+
+        This activation function has the domain and range of R, and thus can be used to build invertible networks.
+
+        Equation: y = sign(x) x^a
+    """
+    def __init__(self, dim):
+        super(PowerFlow, self).__init__()
+        self.a = nn.Parameter(torch.ones(dim))
+
+    def dydx(self, x):
+        return self.a * x.abs().pow(self.a - 1)
+
+    def forward(self, x):
+        a = self.a.clamp(1e-16)
+        return x.sign() * x.abs().pow(a), self.dydx(x).log().sum(1)
+
+    def backward(self, y):
+        a = self.a.clamp(1e-16)
+        x = y.sign() * y.abs().pow(1.0 / a)
+        return x, self.dydx(x).log().sum(1)
 
 class InverseFlow(nn.Module):
     """
@@ -192,6 +290,81 @@ class RankOneConvolutionFlow(nn.Module):
         x = y - 1. / (1 + vT_u) * u_vT_y
         det = 1. / (1 + vT_u)
         return x, det.log()
+
+class HouseholderReflectionFlow(nn.Module):
+    """
+        Applies a Householder reflection of the input about a hyperplane
+    """
+    def __init__(self, dim, v_normal=False):
+        super(HouseholderReflectionFlow, self).__init__()
+
+        v = torch.ones(dim, 1)
+        if v_normal: 
+            v.normal_()
+            
+        self.v = nn.Parameter(v)
+    
+    def rand_v(self):
+        self.v.normal_()
+
+    def forward(self, x):
+        v = self.v
+        vT = torch.t(self.v.data)
+        
+        vT_x = torch.matmul(vT, x.unsqueeze(2))
+        v_vT_x = torch.matmul(v, vT_x).squeeze(2)
+        vT_v = torch.matmul(vT, v).flatten()
+
+        return x - 2.0 * v_vT_x / vT_v, torch.tensor(0.0)
+
+    def backward(self, y):
+        """
+            Reverses the householder reflection using forward(),
+            as the reflection is it's own inverse
+        """
+        return self.forward(y)
+
+class HouseholderQrConvolution(nn.Module):
+    """
+        Applies a convolution using an orthogonal matrix (parameterized by a series of householder reflections),
+        and an upper-triangular matrix.
+
+        The number of householder reflections can be 
+
+        The determinant is log(diag(self.r)), as the householder reflections mirror space about the hyperplane
+    """
+    def __init__(self, dim, reflections):
+        super(HouseholderQrConvolution, self).__init__()
+
+        vs = list()
+        for _ in range(0, reflections):
+            vs.append(HouseholderReflectionFlow(dim, v_normal=True))
+        
+        self.r = nn.Parameter(torch.eye(dim))
+        self.vs = nn.ModuleList(vs)
+
+    def forward(self, x):
+        r_tri = self.r.triu()
+        rx = torch.matmul(r_tri, x.unsqueeze(2)).squeeze(2)
+
+        vrx = rx
+        for v in reversed(self.vs):
+            vrx, _ = v.forward(vrx)
+
+        return vrx, r_tri.diag().log().sum()
+
+    def backward(self, y):
+        r_tri = self.r.triu()
+
+        rx = y
+        for v in self.vs:
+            rx, _ = v.backward(rx)
+
+        (vrx, _) = torch.triangular_solve(rx.unsqueeze(2), r_tri)
+        vrx = vrx.squeeze(2)
+
+        return vrx, -1.0 * self.r.diag().log().sum()
+
 
 # TODO: make the Cdf and Loss generic over a pytorch distribution
 # Maybe there is a way to compute CdfFlow.dydx with autodiff?
