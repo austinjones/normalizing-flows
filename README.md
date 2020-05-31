@@ -39,5 +39,5 @@ These datasets are easy to extract from images and the distributions can be quir
 Here are colors sampled from the 'purple-forest' source dataset:
 ![training colors](https://raw.githubusercontent.com/austinjones/normalizing-flows/master/datasets/purple-forest.jpg)
 
-These are colors which were generated from a model with ~175 weights:
+These are colors which were generated from a model with 132 weights:
 ![generated colors](https://raw.githubusercontent.com/austinjones/normalizing-flows/master/datasets/purple-forest-epoch-50.jpg)
